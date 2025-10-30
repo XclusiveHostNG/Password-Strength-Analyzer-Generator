@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">Analyze a password</div>
+        <div class="card-body">
+          <form method="post" class="mb-3">
+            <div class="mb-3">
+              <label for="password" class="form-label">Password</label>
+              <input type="password" class="form-control" id="password" name="password" placeholder="Enter password" value="{{ password }}" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Analyze</button>
+          </form>
+          {% if report %}
+            <div class="alert alert-info">Entropy: <strong>{{ report.entropy }}</strong> bits · Complexity: <strong>{{ report.complexity }}</strong></div>
+          {% endif %}
+          {% if breach_result and breach_result.found %}
+            <div class="alert alert-danger">This password has appeared in breaches <strong>{{ breach_result.count }}</strong> times.</div>
+          {% elif breach_result %}
+            <div class="alert alert-success">No breaches detected for this password.</div>
+          {% endif %}
+          {% if error_message %}
+            <div class="alert alert-danger">{{ error_message }}</div>
+          {% endif %}
+          {% if generated_password %}
+            <div class="alert alert-success">Generated password: <code>{{ generated_password }}</code></div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card shadow-sm mt-4">
+        <div class="card-header bg-secondary text-white">Generate a secure password</div>
+        <div class="card-body">
+          <form method="post" action="{{ url_for('password_toolkit.generate_password') }}">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="length">Length</label>
+                <input type="number" min="4" max="128" class="form-control" id="length" name="length" value="{{ generation_options.length }}">
+              </div>
+              <div class="col-md-6 d-flex align-items-end">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="require_each_category" name="require_each_category" checked>
+                  <label class="form-check-label" for="require_each_category">Require each category</label>
+                </div>
+              </div>
+            </div>
+            <div class="row g-3 mt-1">
+              <div class="col-md-3">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="use_lowercase" name="use_lowercase" checked>
+                  <label class="form-check-label" for="use_lowercase">Lowercase</label>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="use_uppercase" name="use_uppercase" checked>
+                  <label class="form-check-label" for="use_uppercase">Uppercase</label>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="use_digits" name="use_digits" checked>
+                  <label class="form-check-label" for="use_digits">Digits</label>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="use_symbols" name="use_symbols" checked>
+                  <label class="form-check-label" for="use_symbols">Symbols</label>
+                </div>
+              </div>
+            </div>
+            <div class="mt-3">
+              <button type="submit" class="btn btn-secondary">Generate</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      {% if report %}
+        <div class="card shadow-sm mb-4">
+          <div class="card-header bg-success text-white">Strength metrics</div>
+          <div class="card-body">
+            <div id="strength-data"
+                 data-entropy="{{ report.entropy }}"
+                 data-score="{{ report.score }}"
+                 data-length="{{ report.length }}"
+                 data-char-space="{{ report.char_space }}">
+            </div>
+            <div class="row">
+              <div class="col-md-6">
+                <canvas id="strengthChart" height="200"></canvas>
+              </div>
+              <div class="col-md-6">
+                <canvas id="entropyChart" height="200"></canvas>
+              </div>
+            </div>
+            <p class="mt-3">Entropy estimates the difficulty of brute forcing the password based on its length and character diversity.</p>
+          </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+          <div class="card-header bg-warning">Detected issues & suggestions</div>
+          <div class="card-body">
+            {% if report.issues %}
+              <ul class="list-group mb-3">
+                {% for issue in report.issues %}
+                  <li class="list-group-item">
+                    <strong>{{ issue.severity|title }}:</strong> {{ issue.description }}<br>
+                    <small class="text-muted">Recommendation: {{ report.suggestions[loop.index0] }}</small>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <div class="alert alert-success mb-0">No issues detected. Great job!</div>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if policy_checks %}
+          <div class="card shadow-sm">
+            <div class="card-header bg-info text-white">Policy compliance</div>
+            <div class="card-body">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>Requirement</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for key, passed in policy_checks.items() %}
+                    <tr>
+                      <td>{{ key.replace('_', ' ')|title }}</td>
+                      <td>
+                        {% if passed %}
+                          <span class="badge bg-success">Pass</span>
+                        {% else %}
+                          <span class="badge bg-danger">Fail</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="alert alert-secondary">Analyze a password to view strength metrics and policy compliance.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row mt-5">
+    <div class="col">
+      <div class="card shadow-sm">
+        <div class="card-header">Security best practices</div>
+        <div class="card-body">
+          <ul>
+            <li>Use unique passwords for every account to contain breaches.</li>
+            <li>Enable multi-factor authentication wherever possible.</li>
+            <li>Prefer long passphrases that mix letters, numbers, and symbols.</li>
+            <li>Store passwords in a reputable password manager instead of browsers.</li>
+            <li>Rotate credentials immediately if you suspect compromise.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}
